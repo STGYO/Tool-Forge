@@ -1,0 +1,44 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*.so
+
+# C extensions
+*.pyd
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+*.spec
+
+# Virtual environments
+env/
+venv/
+ENV/
+.venv/
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Logs & backups
+*.log
+*.bak
+*.tmp
+
+# OS metadata
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# VS Code
+.vscode/
+
+# JetBrains
+.idea/
+
+# Forge-generated artifacts
+*.exe
+*.db
+*.jsonl
