@@ -1,3 +1,4 @@
+[![Built with AI](https://img.shields.io/badge/Built%20with-AI-blueviolet?style=for-the-badge&logo=openai&logoColor=white)](#acknowledgements)
 # 🛠️ ToolForge
 
 **Your Personal Utility Arsenal**  
@@ -148,6 +149,16 @@ ToolForge/
 This project is licensed under the **MIT License** — free to use, improve, and distribute.
 
 See the `LICENSE` file for full terms.
+
+
+---
+
+## 🤖 Acknowledgements
+
+This project was crafted with the help of AI tools like **OpenAI**, **Cursor**, and other code accelerators.  
+While the code was generated collaboratively, every decision, structure, and final implementation was guided by human understanding and intentional design.
+
+ToolForge is both a personal learning journey and a showcase of how AI can empower independent development.
 
 ---
 
