@@ -1,11 +1,18 @@
-# ✅ ForgeSpec – QA Checklist
+# ForgeSpec – QA Checklist (Completed)
 
-## 🖥️ Data
-- [ ] Detects and displays CPU, RAM, Disk, GPU, OS
-- [ ] Shows uptime, battery info (if available)
-- [ ] Allows export to TXT or JSON
+## Completed Goals
+- [x] Detects and displays CPU, RAM, Disk, GPU, OS
+- [x] Shows uptime, battery info (if available)
+- [x] Allows export to TXT or JSON
+- [x] Organized layout (GUI)
+- [x] Copy-to-clipboard for spec values (Copy All)
+- [x] No third-party API usage (psutil only)
 
-## UI
-- [ ] Organized layout
-- [ ] Copy-to-clipboard for spec values
-- [ ] No third-party API usage
+## Scope for Further Improvement
+- [ ] Per-section copy/export
+- [ ] More detailed GPU info (cross-platform)
+- [ ] Live updating of stats
+
+---
+
+All core checklist items are now implemented. Further improvements are possible for advanced UX and detail features.

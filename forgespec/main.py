@@ -1,121 +1,181 @@
+
 import platform
 import psutil
 import subprocess
 import os
 import sys
+import tkinter as tk
+from tkinter import ttk, messagebox, filedialog
+import json
+from datetime import datetime, timedelta
 
-def get_os_info():
-    """Collects operating system information."""
-    print("\n--- Operating System ---")
-    print(f"System: {platform.system()}")
-    print(f"Node Name: {platform.node()}")
-    print(f"Release: {platform.release()}")
-    print(f"Version: {platform.version()}")
-    print(f"Machine: {platform.machine()}")
-    print(f"Processor: {platform.processor()}")
-    print(f"Architecture: {platform.architecture()}")
-
-def get_cpu_info():
-    """Collects CPU information."""
-    print("\n--- CPU Information ---")
-    print(f"Physical cores: {psutil.cpu_count(logical=False)}")
-    print(f"Total cores: {psutil.cpu_count(logical=True)}")
-    print(f"CPU usage: {psutil.cpu_percent(interval=1)}%") # Interval for a sample
-    # Optional: Per-CPU usage
-    # print("Per-CPU usage:")
-    # for i, percentage in enumerate(psutil.cpu_percent(interval=1, percpu=True)):
-    #     print(f"  Core {i}: {percentage}%")
-    print(f"CPU frequency: {psutil.cpu_freq().current:.2f} Mhz")
-
-def get_ram_info():
-    """Collects RAM information."""
-    print("\n--- RAM Information ---")
+def get_system_info():
+    info = {}
+    # OS
+    info['os'] = {
+        'System': platform.system(),
+        'Node Name': platform.node(),
+        'Release': platform.release(),
+        'Version': platform.version(),
+        'Machine': platform.machine(),
+        'Processor': platform.processor(),
+        'Architecture': str(platform.architecture())
+    }
+    # CPU
+    info['cpu'] = {
+        'Physical cores': psutil.cpu_count(logical=False),
+        'Total cores': psutil.cpu_count(logical=True),
+        'CPU usage': f"{psutil.cpu_percent(interval=1)}%",
+        'CPU frequency': f"{psutil.cpu_freq().current:.2f} MHz" if psutil.cpu_freq() else 'N/A'
+    }
+    # RAM
     svmem = psutil.virtual_memory()
-    print(f"Total: {svmem.total / (1024**3):.2f} GB")
-    print(f"Available: {svmem.available / (1024**3):.2f} GB")
-    print(f"Used: {svmem.used / (1024**3):.2f} GB")
-    print(f"Percentage: {svmem.percent}%")
-
-def get_disk_info():
-    """Collects disk information."""
-    print("\n--- Disk Information ---")
-    partitions = psutil.disk_partitions()
-    for partition in partitions:
-        print(f"--- Device: {partition.device} ---")
+    info['ram'] = {
+        'Total': f"{svmem.total / (1024**3):.2f} GB",
+        'Available': f"{svmem.available / (1024**3):.2f} GB",
+        'Used': f"{svmem.used / (1024**3):.2f} GB",
+        'Percentage': f"{svmem.percent}%"
+    }
+    # Disk
+    info['disk'] = {}
+    for partition in psutil.disk_partitions():
         try:
             usage = psutil.disk_usage(partition.mountpoint)
-            print(f"  Mountpoint: {partition.mountpoint}")
-            print(f"  File system type: {partition.fstype}")
-            print(f"  Total Size: {usage.total / (1024**3):.2f} GB")
-            print(f"  Used: {usage.used / (1024**3):.2f} GB")
-            print(f"  Free: {usage.free / (1024**3):.2f} GB")
-            print(f"  Percentage: {usage.percent}%")
-        except PermissionError:
-            print(f"  Permission denied to access {partition.mountpoint}")
-        except Exception as e:
-            print(f"  Error accessing disk info for {partition.mountpoint}: {e}")
-
-def get_gpu_info():
-    """Attempts to collect basic GPU information (platform dependent)."""
-    print("\n--- GPU Information (Basic) ---")
-    if platform.system() == "Windows":
+            info['disk'][partition.device] = {
+                'Mountpoint': partition.mountpoint,
+                'File system type': partition.fstype,
+                'Total Size': f"{usage.total / (1024**3):.2f} GB",
+                'Used': f"{usage.used / (1024**3):.2f} GB",
+                'Free': f"{usage.free / (1024**3):.2f} GB",
+                'Percentage': f"{usage.percent}%"
+            }
+        except Exception:
+            info['disk'][partition.device] = {'Error': 'Permission denied or unavailable'}
+    # GPU (best effort)
+    info['gpu'] = {}
+    sysname = platform.system()
+    if sysname == "Windows":
         try:
-            # Using wmic for basic GPU info on Windows
             command = "wmic path win32_videocontroller get name"
             result = subprocess.run(command, capture_output=True, text=True, shell=True)
             if result.returncode == 0:
-                # Split lines and remove header/empty lines
                 gpu_names = [line.strip() for line in result.stdout.splitlines() if line.strip() and "Name" not in line]
-                if gpu_names:
-                    print("GPU Name(s):")
-                    for name in gpu_names:
-                        print(f"  - {name}")
-                else:
-                    print("Could not retrieve GPU name using wmic.")
+                info['gpu']['Name'] = ", ".join(gpu_names) if gpu_names else 'Unknown'
             else:
-                print(f"Error running wmic command: {result.stderr.strip()}")
-        except FileNotFoundError:
-            print("wmic command not found. Cannot retrieve GPU info.")
+                info['gpu']['Error'] = result.stderr.strip()
         except Exception as e:
-            print(f"An error occurred while getting Windows GPU info: {e}")
-    elif platform.system() == "Darwin": # macOS
+            info['gpu']['Error'] = str(e)
+    elif sysname == "Darwin":
         try:
-            # Using system_profiler for GPU info on macOS
             command = "system_profiler SPDisplaysDataType"
             result = subprocess.run(command, capture_output=True, text=True, shell=True)
-            if result.returncode == 0:
-                print(result.stdout.strip()) # Print the full output
-            else:
-                print(f"Error running system_profiler command: {result.stderr.strip()}")
-        except FileNotFoundError:
-            print("system_profiler command not found. Cannot retrieve GPU info.")
+            info['gpu']['Info'] = result.stdout.strip() if result.returncode == 0 else result.stderr.strip()
         except Exception as e:
-            print(f"An error occurred while getting macOS GPU info: {e}")
-    elif platform.system() == "Linux":
+            info['gpu']['Error'] = str(e)
+    elif sysname == "Linux":
         try:
-            # Using lspci for GPU info on Linux (requires lspci to be installed)
             command = "lspci -vnn | grep -i VGA"
             result = subprocess.run(command, capture_output=True, text=True, shell=True)
-            if result.returncode == 0:
-                 if result.stdout.strip():
-                    print(result.stdout.strip())
-                 else:
-                    print("Could not find VGA compatible controller using lspci.")
-            else:
-                print(f"Error running lspci command: {result.stderr.strip()}")
-        except FileNotFoundError:
-            print("lspci command not found. Cannot retrieve GPU info.")
+            info['gpu']['Info'] = result.stdout.strip() if result.returncode == 0 else result.stderr.strip()
         except Exception as e:
-            print(f"An error occurred while getting Linux GPU info: {e}")
-    else:
-        print(f"GPU information retrieval not implemented for {platform.system()}.")
+            info['gpu']['Error'] = str(e)
+    # Uptime
+    try:
+        boot = datetime.fromtimestamp(psutil.boot_time())
+        now = datetime.now()
+        uptime = now - boot
+        info['uptime'] = str(uptime).split('.')[0]
+    except Exception:
+        info['uptime'] = 'N/A'
+    # Battery
+    try:
+        battery = psutil.sensors_battery()
+        if battery:
+            info['battery'] = {
+                'Percent': f"{battery.percent}%",
+                'Plugged in': battery.power_plugged,
+                'Time left': f"{timedelta(seconds=battery.secsleft)}" if battery.secsleft != psutil.POWER_TIME_UNLIMITED else 'Unlimited'
+            }
+        else:
+            info['battery'] = 'No battery info available'
+    except Exception:
+        info['battery'] = 'N/A'
+    return info
 
+def export_txt(info, filename):
+    with open(filename, 'w') as f:
+        for section, data in info.items():
+            f.write(f"--- {section.upper()} ---\n")
+            if isinstance(data, dict):
+                for k, v in data.items():
+                    if isinstance(v, dict):
+                        f.write(f"{k}:\n")
+                        for sk, sv in v.items():
+                            f.write(f"  {sk}: {sv}\n")
+                    else:
+                        f.write(f"{k}: {v}\n")
+            else:
+                f.write(f"{data}\n")
+            f.write("\n")
+
+def export_json(info, filename):
+    with open(filename, 'w') as f:
+        json.dump(info, f, indent=2)
+
+class SpecApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("ForgeSpec - System Info")
+        self.info = get_system_info()
+
+        self.text = tk.Text(root, wrap="word", height=30, width=80)
+        self.text.pack(fill="both", expand=True, padx=5, pady=5)
+        self.text.insert("end", self.format_info(self.info))
+
+        btn_frame = ttk.Frame(root)
+        btn_frame.pack(fill="x", padx=5, pady=2)
+        ttk.Button(btn_frame, text="Copy All", command=self.copy_all).pack(side="left")
+        ttk.Button(btn_frame, text="Export TXT", command=self.export_txt).pack(side="left")
+        ttk.Button(btn_frame, text="Export JSON", command=self.export_json).pack(side="left")
+
+    def format_info(self, info):
+        out = []
+        for section, data in info.items():
+            out.append(f"--- {section.upper()} ---")
+            if isinstance(data, dict):
+                for k, v in data.items():
+                    if isinstance(v, dict):
+                        out.append(f"{k}:")
+                        for sk, sv in v.items():
+                            out.append(f"  {sk}: {sv}")
+                    else:
+                        out.append(f"{k}: {v}")
+            else:
+                out.append(str(data))
+            out.append("")
+        return "\n".join(out)
+
+    def copy_all(self):
+        self.root.clipboard_clear()
+        self.root.clipboard_append(self.text.get("1.0", "end"))
+        messagebox.showinfo("Copied", "System info copied to clipboard.")
+
+    def export_txt(self):
+        f = filedialog.asksaveasfilename(defaultextension=".txt", filetypes=[("Text files", "*.txt")])
+        if f:
+            export_txt(self.info, f)
+            messagebox.showinfo("Export", f"Exported to {f}")
+
+    def export_json(self):
+        f = filedialog.asksaveasfilename(defaultextension=".json", filetypes=[("JSON files", "*.json")])
+        if f:
+            export_json(self.info, f)
+            messagebox.showinfo("Export", f"Exported to {f}")
+
+def main():
+    root = tk.Tk()
+    app = SpecApp(root)
+    root.mainloop()
 
 if __name__ == "__main__":
-    print("Generating system information snapshot...")
-    get_os_info()
-    get_cpu_info()
-    get_ram_info()
-    get_disk_info()
-    get_gpu_info()
-    print("\nSystem information snapshot complete.")
+    main()

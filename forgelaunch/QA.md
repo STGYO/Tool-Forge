@@ -1,11 +1,19 @@
-# ✅ ForgeLaunch – QA Checklist
+# ForgeLaunch – QA Checklist (Completed)
 
-## 🧠 Features
-- [ ] Add app shortcuts manually
-- [ ] Add tags or categories
-- [ ] Launches apps from GUI
+## Completed Goals
+- [x] Add app shortcuts manually
+- [x] Add tags or categories
+- [x] Launches apps from GUI
+- [x] Search bar for filtering apps
+- [x] Editable shortcut paths
+- [x] Drag & drop support (basic placeholder, file dialog for adding)
 
-## UI
-- [ ] Search bar for filtering apps
-- [ ] Editable shortcut paths
-- [ ] Drag & drop support (optional)
+## Scope for Further Improvement
+- [ ] Native drag-and-drop for files (Tkinter limitations)
+- [ ] Import/export shortcuts
+- [ ] Grouping and color-coding by tag
+- [ ] Keyboard shortcuts for launching
+
+---
+
+All core checklist items are now implemented. Further improvements are possible for advanced drag-and-drop and UX features.

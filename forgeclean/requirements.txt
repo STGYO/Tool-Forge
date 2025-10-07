@@ -1,1 +1,2 @@
-# No external dependencies required for the basic version.
+tkinter
+matplotlib

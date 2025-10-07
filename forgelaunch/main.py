@@ -28,57 +28,195 @@ def save_shortcuts():
     with open(SHORTCUTS_FILE, 'w') as f:
         json.dump(SHORTCUTS, f, indent=4)
 
+
 class LauncherGUI:
     def __init__(self, master):
         self.master = master
         master.title("ForgeLaunch")
 
         self.shortcuts = load_shortcuts()
+        # Shortcuts format: {name: {"path": ..., "tags": [tag1, tag2]}}
+        if self.shortcuts and isinstance(next(iter(self.shortcuts.values())), str):
+            # Migrate old format
+            self.shortcuts = {k: {"path": v, "tags": []} for k, v in self.shortcuts.items()}
 
-        # --- Add Shortcut Section ---
-        self.frame_add = tk.LabelFrame(master, text="Add New Shortcut")
+        # --- Add/Edit Shortcut Section ---
+        self.frame_add = tk.LabelFrame(master, text="Add/Edit Shortcut")
         self.frame_add.grid(row=0, column=0, padx=10, pady=5, sticky=tk.EW)
 
         self.label_name = tk.Label(self.frame_add, text="Name:")
         self.label_name.grid(row=0, column=0, sticky=tk.W, padx=5, pady=2)
-        self.entry_name = tk.Entry(self.frame_add, width=40)
+        self.entry_name = tk.Entry(self.frame_add, width=20)
         self.entry_name.grid(row=0, column=1, sticky=tk.EW, padx=5, pady=2)
 
         self.label_path = tk.Label(self.frame_add, text="Path:")
         self.label_path.grid(row=1, column=0, sticky=tk.W, padx=5, pady=2)
-        self.entry_path = tk.Entry(self.frame_add, width=40)
+        self.entry_path = tk.Entry(self.frame_add, width=30)
         self.entry_path.grid(row=1, column=1, sticky=tk.EW, padx=5, pady=2)
 
         self.button_browse = tk.Button(self.frame_add, text="Browse", command=self.browse_file)
         self.button_browse.grid(row=1, column=2, padx=5, pady=2)
 
-        self.button_add = tk.Button(self.frame_add, text="Add Shortcut", command=self.add_shortcut)
-        self.button_add.grid(row=2, column=0, columnspan=3, pady=5)
+        self.label_tags = tk.Label(self.frame_add, text="Tags (comma):")
+        self.label_tags.grid(row=2, column=0, sticky=tk.W, padx=5, pady=2)
+        self.entry_tags = tk.Entry(self.frame_add, width=20)
+        self.entry_tags.grid(row=2, column=1, sticky=tk.EW, padx=5, pady=2)
 
-        # Configure column weights so entry fields expand
+        self.button_add = tk.Button(self.frame_add, text="Add/Update Shortcut", command=self.add_shortcut)
+        self.button_add.grid(row=3, column=0, pady=5)
+        self.button_edit = tk.Button(self.frame_add, text="Edit Selected", command=self.edit_selected)
+        self.button_edit.grid(row=3, column=1, pady=5)
+        self.button_delete = tk.Button(self.frame_add, text="Delete Selected", command=self.delete_selected)
+        self.button_delete.grid(row=3, column=2, pady=5)
+
         self.frame_add.columnconfigure(1, weight=1)
 
-        # --- Search and Launch Section ---
-        self.frame_launch = tk.LabelFrame(master, text="Search and Launch")
+        # --- Search, Filter, and Launch Section ---
+        self.frame_launch = tk.LabelFrame(master, text="Search, Filter, and Launch")
         self.frame_launch.grid(row=1, column=0, padx=10, pady=5, sticky=tk.EW)
 
         self.label_search = tk.Label(self.frame_launch, text="Search:")
         self.label_search.grid(row=0, column=0, sticky=tk.W, padx=5, pady=2)
-        self.entry_search = tk.Entry(self.frame_launch, width=40)
+        self.entry_search = tk.Entry(self.frame_launch, width=20)
         self.entry_search.grid(row=0, column=1, sticky=tk.EW, padx=5, pady=2)
         self.entry_search.bind("<KeyRelease>", self.filter_list)
 
+        self.label_tagfilter = tk.Label(self.frame_launch, text="Tag filter:")
+        self.label_tagfilter.grid(row=0, column=2, sticky=tk.W, padx=5, pady=2)
+        self.entry_tagfilter = tk.Entry(self.frame_launch, width=15)
+        self.entry_tagfilter.grid(row=0, column=3, sticky=tk.EW, padx=5, pady=2)
+        self.entry_tagfilter.bind("<KeyRelease>", self.filter_list)
+
         self.listbox_shortcuts = tk.Listbox(self.frame_launch, height=10)
-        self.listbox_shortcuts.grid(row=1, column=0, columnspan=2, sticky=tk.EW, padx=5, pady=5)
+        self.listbox_shortcuts.grid(row=1, column=0, columnspan=4, sticky=tk.EW, padx=5, pady=5)
         self.listbox_shortcuts.bind("<<ListboxSelect>>", self.on_listbox_select)
+        self.listbox_shortcuts.bind("<Double-Button-1>", self.launch_selected)
+        self.listbox_shortcuts.bind("<B1-Motion>", self.drag_motion)
+        self.listbox_shortcuts.bind("<ButtonRelease-1>", self.drop_shortcut)
 
         self.button_launch = tk.Button(self.frame_launch, text="Launch Selected", command=self.launch_selected)
-        self.button_launch.grid(row=2, column=0, columnspan=2, pady=5)
+        self.button_launch.grid(row=2, column=0, columnspan=4, pady=5)
 
-        # Configure column weights
         self.frame_launch.columnconfigure(1, weight=1)
+        self.frame_launch.columnconfigure(3, weight=1)
+
+        self.drag_data = {"widget": None, "index": None}
 
         self.populate_listbox()
+
+    def browse_file(self):
+        filepath = filedialog.askopenfilename(title="Select File or Application", filetypes=(("All files", "*.*"),))
+        if filepath:
+            self.entry_path.delete(0, tk.END)
+            self.entry_path.insert(0, filepath)
+
+    def add_shortcut(self):
+        name = self.entry_name.get().strip()
+        path = self.entry_path.get().strip()
+        tags = [t.strip() for t in self.entry_tags.get().split(",") if t.strip()]
+        if not name or not path:
+            messagebox.showwarning("Input Error", "Please provide both a name and a path.")
+            return
+        if name in self.shortcuts:
+            if not messagebox.askyesno("Overwrite?", f"Shortcut '{name}' already exists. Overwrite?"):
+                return
+        self.shortcuts[name] = {"path": path, "tags": tags}
+        save_shortcuts()
+        self.populate_listbox()
+        messagebox.showinfo("Success", f"Shortcut '{name}' added/updated.")
+        self.entry_name.delete(0, tk.END)
+        self.entry_path.delete(0, tk.END)
+        self.entry_tags.delete(0, tk.END)
+
+    def edit_selected(self):
+        idxs = self.listbox_shortcuts.curselection()
+        if not idxs:
+            messagebox.showwarning("Selection Error", "Please select a shortcut to edit.")
+            return
+        name = self.listbox_shortcuts.get(idxs[0])
+        shortcut = self.shortcuts.get(name)
+        if shortcut:
+            self.entry_name.delete(0, tk.END)
+            self.entry_name.insert(0, name)
+            self.entry_path.delete(0, tk.END)
+            self.entry_path.insert(0, shortcut["path"])
+            self.entry_tags.delete(0, tk.END)
+            self.entry_tags.insert(0, ", ".join(shortcut.get("tags", [])))
+
+    def delete_selected(self):
+        idxs = self.listbox_shortcuts.curselection()
+        if not idxs:
+            messagebox.showwarning("Selection Error", "Please select a shortcut to delete.")
+            return
+        name = self.listbox_shortcuts.get(idxs[0])
+        if messagebox.askyesno("Delete", f"Delete shortcut '{name}'?"):
+            del self.shortcuts[name]
+            save_shortcuts()
+            self.populate_listbox()
+
+    def populate_listbox(self, filtered_names=None):
+        self.listbox_shortcuts.delete(0, tk.END)
+        names_to_display = filtered_names if filtered_names is not None else sorted(self.shortcuts.keys())
+        for name in names_to_display:
+            self.listbox_shortcuts.insert(tk.END, name)
+
+    def filter_list(self, event=None):
+        query = self.entry_search.get().strip().lower()
+        tag_query = self.entry_tagfilter.get().strip().lower()
+        filtered_names = []
+        for name, data in self.shortcuts.items():
+            if query and query not in name.lower():
+                continue
+            if tag_query and not any(tag_query in t.lower() for t in data.get("tags", [])):
+                continue
+            filtered_names.append(name)
+        self.populate_listbox(filtered_names)
+
+    def on_listbox_select(self, event):
+        idxs = self.listbox_shortcuts.curselection()
+        if not idxs:
+            return
+        name = self.listbox_shortcuts.get(idxs[0])
+        shortcut = self.shortcuts.get(name)
+        if shortcut:
+            self.entry_name.delete(0, tk.END)
+            self.entry_name.insert(0, name)
+            self.entry_path.delete(0, tk.END)
+            self.entry_path.insert(0, shortcut["path"])
+            self.entry_tags.delete(0, tk.END)
+            self.entry_tags.insert(0, ", ".join(shortcut.get("tags", [])))
+
+    def launch_selected(self, event=None):
+        idxs = self.listbox_shortcuts.curselection()
+        if not idxs:
+            messagebox.showwarning("Selection Error", "Please select a shortcut to launch.")
+            return
+        name = self.listbox_shortcuts.get(idxs[0])
+        shortcut = self.shortcuts.get(name)
+        if not shortcut:
+            messagebox.showerror("Launch Error", f"Path not found for shortcut '{name}'.")
+            return
+        shortcut_path = shortcut["path"]
+        try:
+            if sys.platform == "win32":
+                os.startfile(shortcut_path)
+            elif sys.platform == "darwin":
+                subprocess.call(['open', shortcut_path])
+            else:
+                subprocess.call(['xdg-open', shortcut_path])
+        except FileNotFoundError:
+            messagebox.showerror("Launch Error", f"File or application not found at '{shortcut_path}'.")
+        except Exception as e:
+            messagebox.showerror("Launch Error", f"Could not launch '{shortcut_path}': {e}")
+
+    # Drag and drop support (reorder or add shortcuts)
+    def drag_motion(self, event):
+        # Placeholder for drag logic (Tkinter native DnD is limited)
+        pass
+
+    def drop_shortcut(self, event):
+        # Placeholder for drop logic
+        pass
 
     def browse_file(self):
         """Opens a file dialog to select an application, script, or folder."""
